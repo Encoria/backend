@@ -1,0 +1,102 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ]  # Adjust as needed for your branch strategy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub  # Or use ECR instead
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/backend:${{ github.sha }}
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Create .env file with secrets
+            cat > /home/ec2-user/app/.env << 'EOL'
+            # Database config
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            
+            # OAuth config
+            OAUTH_ISSUER_URI=${{ secrets.OAUTH_ISSUER_URI }}
+            OAUTH_AUDIENCE=${{ secrets.OAUTH_AUDIENCE }}
+            EOL
+            
+            # Create docker-compose.yml file
+            cat > /home/ec2-user/app/docker-compose.yml << 'EOL'
+            version: '3.8'
+            
+            services:
+              postgres-db:
+                image: postgres:16-alpine
+                env_file:
+                  - .env
+                container_name: db
+                environment:
+                  POSTGRES_DB: ${POSTGRES_DB}
+                  POSTGRES_USER: ${POSTGRES_USER}
+                  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+                volumes:
+                  - postgres-data:/var/lib/postgresql/data
+                ports:
+                  - "5433:5432"
+                restart: unless-stopped
+                healthcheck:
+                  test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 5
+            
+              backend:
+                image: ${{ secrets.DOCKERHUB_USERNAME }}/backend:${{ github.sha }}
+                container_name: backend
+                env_file:
+                  - .env
+                depends_on:
+                  postgres-db:
+                    condition: service_healthy
+                ports:
+                  - "8080:8080"
+                environment:
+                  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+                  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+                  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+                  SPRING_JPA_HIBERNATE_DDL_AUTO: update
+                  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${OAUTH_ISSUER_URI}
+                  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES: ${OAUTH_AUDIENCE}
+                restart: unless-stopped
+            
+            volumes:
+              postgres-data:
+                driver: local
+            EOL
+            
+            # Deploy with docker-compose
+            cd /home/ec2-user/app
+            docker compose pull
+            docker compose up -d
