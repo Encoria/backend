@@ -4,13 +4,15 @@ services:
   # Service for the PostgreSQL Database
   postgres-db:
     image: postgres:16-alpine # Use an official PostgreSQL image (Alpine is smaller)
+    env_file:
+      - .env
     container_name: db
     environment:
       # Define database name, user, and password
       # IMPORTANT: Use strong passwords and manage secrets securely in production (e.g., Docker secrets, Vault)
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       # Persist database data using a named volume
       - postgres-data:/var/lib/postgresql/data
@@ -29,6 +31,8 @@ services:
   backend:
     build: . # Build the image from the Dockerfile in the current directory
     container_name: backend
+    env_file:
+      - .env
     depends_on:
       postgres-db:
         condition: service_healthy # Wait for the DB healthcheck to pass
@@ -38,15 +42,15 @@ services:
     environment:
       # --- Database Configuration ---
       # Use the service name 'postgres-db' as the hostname
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/postgres
-      SPRING_DATASOURCE_USERNAME: postgres # Use variables defined in postgres-db service
-      SPRING_DATASOURCE_PASSWORD: postgres # Use variables defined in postgres-db service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update # Or 'validate', 'none' for production
 
       # --- Security Configuration ---
       # Pass the Issuer URI for Okta/Auth0
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES:
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${OAUTH_ISSUER_URI}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES: ${OAUTH_AUDIENCE}
 
       # --- Optional: Server Port ---
       # SERVER_PORT: 8080 # Default is 8080, uncomment to change
@@ -58,11 +62,13 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4 # Official pgAdmin4 image
+    env_file:
+      - .env
     container_name: pgaui # Optional: A specific name for the container
     environment:
       # Set required environment variables for pgAdmin
-      PGADMIN_DEFAULT_EMAIL: admin@example.com # Replace with your email for pgAdmin login
-      PGADMIN_DEFAULT_PASSWORD: admin # Replace 'admin' with a strong password for pgAdmin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL} # Replace with your email for pgAdmin login
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD} # Replace 'admin' with a strong password for pgAdmin
     ports:
       - "5050:80" # Map host port 5050 to container port 80 (pgAdmin's default web server port)
     depends_on:
