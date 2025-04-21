@@ -26,7 +26,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/backend:${{ github.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pruebas-daniel-app:latest
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
@@ -73,7 +73,7 @@ jobs:
                   retries: 5
             
               backend:
-                image: ${{ secrets.DOCKERHUB_USERNAME }}/backend:${{ github.sha }}
+                image: ${{ secrets.DOCKERHUB_USERNAME }}/pruebas-daniel-app:latest
                 container_name: backend
                 env_file:
                   - .env
@@ -98,5 +98,5 @@ jobs:
             
             # Deploy with docker-compose
             cd /home/ec2-user/app
-            docker compose pull
-            docker compose up -d
+            docker-compose pull
+            docker-compose up -d

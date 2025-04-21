@@ -8,6 +8,8 @@ WORKDIR /app
 COPY .mvn/ .mvn
 COPY mvnw pom.xml ./
 
+RUN chmod +x ./mvnw
+
 # Download dependencies (this layer is cached if pom.xml/mvnw don't change)
 # Using dependency:go-offline might be slightly faster if network is slow
 RUN ./mvnw dependency:resolve
