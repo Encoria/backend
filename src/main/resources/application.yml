@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: backend
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Use ONLY issuer-uri for discovery and issuer validation
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI}
+          # Ensure this audience EXACTLY matches your API Identifier in Auth0
+          # AND is present in the 'aud' claim of the Access Token.
+          audiences: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES}
+
+  # Database configuration (ensure this is set up)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+    show-sql: true # For debugging
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+logging:
+  level:
+    # Keep these DEBUG/TRACE levels active
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2.server.resource: DEBUG
+    com.nimbusds.jose.proc: TRACE
+    com.nimbusds.jose.jwk: TRACE
+    com.nimbusds.oauth2.sdk: DEBUG
+    # Optional:
+    # org.springframework.web.filter.CommonsRequestLoggingFilter: DEBUG
+    # org.springframework.web.servlet.DispatcherServlet: DEBUG

@@ -1,0 +1,66 @@
+version: '3.8' # Use a recent version
+
+services:
+  # Service for the PostgreSQL Database
+  postgres-db:
+    image: postgres:16-alpine # Use an official PostgreSQL image (Alpine is smaller)
+    env_file:
+      - .env
+    container_name: db
+    environment:
+      # Define database name, user, and password
+      # IMPORTANT: Use strong passwords and manage secrets securely in production (e.g., Docker secrets, Vault)
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # Persist database data using a named volume
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      # Optional: Map port 5432 to host port 5433 if you need external access (e.g., for debugging)
+      # Remove or secure this properly in production
+      - "5433:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service for your Spring Boot Application (Resource Server)
+  backend:
+    build: . # Build the image from the Dockerfile in the current directory
+    container_name: backend
+    env_file:
+      - .env
+    depends_on:
+      postgres-db:
+        condition: service_healthy # Wait for the DB healthcheck to pass
+    ports:
+      # Map the host port 8080 to the container's port 8080
+      - "8080:8080"
+    environment:
+      # --- Database Configuration ---
+      # Use the service name 'postgres-db' as the hostname
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update # Or 'validate', 'none' for production
+
+      # --- Security Configuration ---
+      # Pass the Issuer URI for Okta/Auth0
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${OAUTH_ISSUER_URI}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES: ${OAUTH_AUDIENCE}
+
+      # --- Optional: Server Port ---
+      # SERVER_PORT: 8080 # Default is 8080, uncomment to change
+
+      # --- Optional: Logging Level ---
+      # LOGGING_LEVEL_ROOT: INFO
+      # LOGGING_LEVEL_YOUR_APP_PACKAGE: DEBUG
+    restart: unless-stopped
+
+# Define the named volume for PostgreSQL data persistence
+volumes:
+  postgres-data:
+    driver: local
